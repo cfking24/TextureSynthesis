@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
     # Set parameters (window size, kernel size, etc.)
     window_height, window_width = 1000, 1000
-    kernel_size = 21
+    kernel_size = 11
 
     # # Assuming 'original_sample' is loaded correctly
     # # Check if the image has an alpha channel (RGBA format)
@@ -34,7 +34,11 @@ if __name__ == '__main__':
 
     visualize = True
     # Perform texture synthesis
-    synthesized_texture = synthesize_texture(sample, (window_height, window_width), kernel_size, visualize=visualize)
+
+    runtime = 1
+    runtime = runtime * 60
+
+    synthesized_texture = synthesize_texture(sample, (window_height, window_width), kernel_size, visualize=visualize, runtime=runtime)
 
     # Save the synthesized texture (replace with your desired output path)
     output_image_path = 'C:\\Users\\Conor King\\Documents\\School\\EEC 289A\\HW 2 - 2nd Attempt\\TextureSynthesis\\Synthesized Images\\1.jpg'

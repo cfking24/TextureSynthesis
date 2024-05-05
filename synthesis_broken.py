@@ -4,6 +4,7 @@ import argparse
 import cv2
 import numpy as np
 import time
+import random
 
 EIGHT_CONNECTED_NEIGHBOR_KERNEL = np.array([[1., 1., 1.],
                                             [1., 0., 1.],
@@ -12,7 +13,7 @@ SIGMA_COEFF = 6.4      # The denominator for a 2D Gaussian sigma used in the ref
 ERROR_THRESHOLD = 0.1  # The default error threshold for synthesis acceptance in the reference implementation.
 
 
-def normalized_ssd(sample, window, mask):
+def normalized_ssd(sample, window, mask, patch_percentage):
     wh, ww = window.shape
     sh, sw = sample.shape
 
@@ -21,15 +22,24 @@ def normalized_ssd(sample, window, mask):
                         strides=(sample.strides[0], sample.strides[1], sample.strides[0], sample.strides[1]))
     strided_sample = strided_sample.reshape(-1, wh, ww)
 
+    # Randomly sample a percentage of patches from the strided sample.
+    num_patches = strided_sample.shape[0]
+    num_selected_patches = int(num_patches * patch_percentage)
+    selected_indices = np.random.choice(num_patches, size=num_selected_patches, replace=False)
+    selected_indices.sort()  # Sort the indices in ascending order
+    strided_sample = strided_sample[selected_indices]
+
     # Note that the window and mask views have the same shape as the strided sample, but the kernel is fixed
     # rather than sliding for each of these components.
     strided_window = np.lib.stride_tricks.as_strided(window, shape=((sh-wh+1), (sw-ww+1), wh, ww),
                         strides=(0, 0, window.strides[0], window.strides[1]))
     strided_window = strided_window.reshape(-1, wh, ww)
+    strided_window = strided_window[0:len(strided_sample), :, :]
 
     strided_mask = np.lib.stride_tricks.as_strided(mask, shape=((sh-wh+1), (sw-ww+1), wh, ww),
                         strides=(0, 0, mask.strides[0], mask.strides[1]))
     strided_mask = strided_mask.reshape(-1, wh, ww)
+    strided_mask = strided_mask[0:len(strided_sample), :, :]
 
     # Form a 2D Gaussian weight matrix from symmetric linearly separable Gaussian kernels and generate a 
     # strided view over this matrix.
@@ -40,6 +50,7 @@ def normalized_ssd(sample, window, mask):
     strided_kernel = np.lib.stride_tricks.as_strided(kernel_2d, shape=((sh-wh+1), (sw-ww+1), wh, ww),
                         strides=(0, 0, kernel_2d.strides[0], kernel_2d.strides[1]))
     strided_kernel = strided_kernel.reshape(-1, wh, ww)
+    strided_kernel = strided_kernel[0:len(strided_sample), :, :]
 
     # Take the sum of squared differences over all sliding sample windows and weight it so that only existing neighbors
     # contribute to error. Use the Gaussian kernel to weight central values more strongly than distant neighbors.
@@ -53,12 +64,55 @@ def normalized_ssd(sample, window, mask):
 
     return normalized_ssd
 
-def get_candidate_indices(normalized_ssd, error_threshold=ERROR_THRESHOLD):
+def calculate_threshold_distance(sample, windowsize, runtime=15, percentile=0.0003):
+    start_time = time.time()
+    distances = []
+
+    # Calculate the shape of the sample array
+    sh, sw = sample.shape
+
+    counter = 0
+
+    while time.time() - start_time < runtime:
+        # Select a random patch
+        i = random.randint(0, sh-windowsize)
+        j = random.randint(0, sw-windowsize)
+
+        # Create the window and mask
+        window = sample[i:i+windowsize, j:j+windowsize]
+        mask = np.zeros_like(window)
+        mask[:, :mask.shape[1]//2] = 1
+
+        # Calculate the normalized SSD for the patch
+        #ssd = normalized_ssd(sample, window, mask, 1)
+        ssd = np.random.rand(1, 1) # Placeholder for the normalized SSD
+
+        # Calculate the squared sum of distances for the patch
+        distances.append(ssd.reshape(-1, 1))
+
+        counter += 1
+
+    # Sort the distances
+    distances = np.concatenate(distances).ravel()
+    distances.sort()
+
+    # Calculate the index of the threshold distance
+    index = int(len(distances) * percentile)
+
+    # Return the threshold distance
+    print("Number of patches checked:", counter)
+    return distances[index]
+
+def get_candidate_indices(normalized_ssd, error_threshold=ERROR_THRESHOLD, threshold_distance=None):
     min_ssd = np.min(normalized_ssd)
+    min_threshold = min_ssd * (1. + error_threshold)
+    #threshold_distance = max(threshold_distance, min_threshold)
+    threshold_distance = min_threshold
+    indices = np.where(normalized_ssd <= threshold_distance)
     if min_ssd > 0.:
         a = 5
-    min_threshold = min_ssd * (1. + error_threshold)
-    indices = np.where(normalized_ssd <= min_threshold)
+    # sorted_indices = np.argsort(normalized_ssd.flatten())[:4]
+    # indices = (sorted_indices // normalized_ssd.shape[1], sorted_indices % normalized_ssd.shape[1])
     return indices
 
 def select_pixel_index(normalized_ssd, indices, method='uniform'):
@@ -67,7 +121,9 @@ def select_pixel_index(normalized_ssd, indices, method='uniform'):
     if method == 'uniform':
         weights = np.ones(N) / float(N)
     else:
-        weights = normalized_ssd[indices]
+        weights = 1 / (normalized_ssd[indices] + 1e-6)  # Add a small value to avoid division by zero
+        if max(weights) < 1e6:
+            a = 5
         weights = weights / np.sum(weights)
 
     # Select a random pixel index from the index list.
@@ -122,6 +178,8 @@ def initialize_texture_synthesis(original_sample, window_size, kernel_size):
     sample = sample.astype(np.float64)
     sample = sample / 255.
 
+    threshold_distance = calculate_threshold_distance(sample, kernel_size)
+
     # Generate window
     window = np.zeros(window_size, dtype=np.float64)
 
@@ -158,18 +216,15 @@ def initialize_texture_synthesis(original_sample, window_size, kernel_size):
     window = padded_window[win:-win, win:-win]
     mask = padded_mask[win:-win, win:-win]
 
-    return sample, window, mask, padded_window, padded_mask, result_window
+    return sample, window, mask, padded_window, padded_mask, result_window, threshold_distance
     
-def synthesize_texture(original_sample, window_size, kernel_size, visualize, runtime):
+def synthesize_texture(original_sample, window_size, kernel_size, visualize, patch_percentage=0.1):
     global gif_count
     (sample, window, mask, padded_window, 
-        padded_mask, result_window) = initialize_texture_synthesis(original_sample, window_size, kernel_size)
+        padded_mask, result_window, threshold_distance) = initialize_texture_synthesis(original_sample, window_size, kernel_size)
 
-    start_time = time.time()
-    elapsed_time = 0
-
-    # Synthesize texture until the specified runtime has elapsed.
-    while elapsed_time < runtime and texture_can_be_synthesized(mask):
+    # Synthesize texture until all pixels in the window are filled.
+    while texture_can_be_synthesized(mask):
         # Get neighboring indices
         neighboring_indices = get_neighboring_pixel_indices(mask)
 
@@ -182,9 +237,9 @@ def synthesize_texture(original_sample, window_size, kernel_size, visualize, run
             mask_slice = padded_mask[ch:ch+kernel_size, cw:cw+kernel_size]
 
             # Compute SSD for the current pixel neighborhood and select an index with low error.
-            ssd = normalized_ssd(sample, window_slice, mask_slice)
-            indices = get_candidate_indices(ssd)
-            selected_index = select_pixel_index(ssd, indices)
+            ssd = normalized_ssd(sample, window_slice, mask_slice, patch_percentage)
+            indices = get_candidate_indices(ssd, threshold_distance = threshold_distance)
+            selected_index = select_pixel_index(ssd, indices, method = 'weighted')
 
             # Translate index to accommodate padding.
             selected_index = (selected_index[0] + kernel_size // 2, selected_index[1] + kernel_size // 2)
@@ -201,20 +256,10 @@ def synthesize_texture(original_sample, window_size, kernel_size, visualize, run
                     cv2.destroyAllWindows()
                     return result_window
 
-        elapsed_time = time.time() - start_time
-
     if visualize:
         cv2.imshow('synthesis window', result_window)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-    
-    # Crop the result_window to the amount that was actually filled.
-    filled_indices = np.where(mask == 1)
-    min_row = np.min(filled_indices[0])
-    max_row = np.max(filled_indices[0])
-    min_col = np.min(filled_indices[1])
-    max_col = np.max(filled_indices[1])
-    result_window = result_window[min_row:max_row+1, min_col:max_col+1]
 
     return result_window
 
