@@ -181,16 +181,23 @@ def synthesize_texture(original_sample, window_size, kernel_size, visualize, run
             window_slice = padded_window[ch:ch+kernel_size, cw:cw+kernel_size]
             mask_slice = padded_mask[ch:ch+kernel_size, cw:cw+kernel_size]
 
+            # Select a random patch from the sample
+            patch_size = 64
+            sample_h, sample_w = sample.shape
+            start_row = np.random.randint(sample_h - patch_size + 1)
+            start_col = np.random.randint(sample_w - patch_size + 1)
+            patch = sample[start_row:start_row+patch_size, start_col:start_col+patch_size]
+
             # Compute SSD for the current pixel neighborhood and select an index with low error.
-            ssd = normalized_ssd(sample, window_slice, mask_slice)
+            ssd = normalized_ssd(patch, window_slice, mask_slice)
             indices = get_candidate_indices(ssd)
             selected_index = select_pixel_index(ssd, indices)
 
             # Translate index to accommodate padding.
-            selected_index = (selected_index[0] + kernel_size // 2, selected_index[1] + kernel_size // 2)
+            selected_index = (start_row + selected_index[0] + kernel_size // 2, start_col + selected_index[1] + kernel_size // 2)
 
             # Set windows and mask.
-            window[ch, cw] = sample[selected_index]
+            window[ch, cw] = patch[selected_index]
             mask[ch, cw] = 1
             result_window[ch, cw] = original_sample[selected_index[0], selected_index[1]]
 

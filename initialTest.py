@@ -1,50 +1,43 @@
-from synthesis import synthesize_texture, initialize_texture_synthesis
 import cv2
 import os
+import cv2
+import os
+from synthesis import synthesize_texture
 
 # Example usage
 if __name__ == '__main__':
-    # Load your input image (replace with your actual image path)
-    input_image_path = 'C:\\Users\\Conor King\\Documents\\School\\EEC 289A\\HW 2 - 2nd Attempt\\TextureSynthesis\\examples\\wood.jpg'
-    
-    sample = cv2.imread(input_image_path)
+    # Load your input images from the Images directory
+    input_images_dir = 'C:\\Users\\Conor King\\Documents\\School\\EEC 289A\\HW 2 - 2nd Attempt\\TextureSynthesis\\Images'
+    input_image_paths = [os.path.join(input_images_dir, filename) for filename in os.listdir(input_images_dir)]
 
-    # Display the image
-    cv2.imshow("Input Image", sample)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # Set kernel sizes and runtime
+    kernel_sizes = [11, 31, 51]
+    runtime_minutes = 15
 
-    # Set parameters (window size, kernel size, etc.)
-    window_height, window_width = 1000, 1000
-    kernel_size = 11
+    for input_image_path in input_image_paths:
+        # Load input image
+        sample = cv2.imread(input_image_path)
 
-    # # Assuming 'original_sample' is loaded correctly
-    # # Check if the image has an alpha channel (RGBA format)
-    # if sample.shape[2] == 4:
-    #     # Remove the alpha channel
-    #     original_sample = sample[:, :, :3]
+        # Display the input image
+        # cv2.imshow("Input Image", sample)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
 
-    # # Convert to grayscale
-    # greysample = cv2.cvtColor(sample, cv2.COLOR_BGR2GRAY)
+        # Get the filename without extension
+        filename = os.path.splitext(os.path.basename(input_image_path))[0]
 
+        for kernel_size in kernel_sizes:
+            # Set runtime in seconds
+            runtime = runtime_minutes * 60
 
-    # Initialize texture synthesis
-    # (sample, window, mask, padded_window,
-    #     padded_mask, result_window) = initialize_texture_synthesis(sample, (window_height, window_width), kernel_size)
+            # Perform texture synthesis
+            synthesized_texture = synthesize_texture(sample, (1000, 1000), kernel_size, visualize=False, runtime=runtime)
 
-    visualize = True
-    # Perform texture synthesis
+            # Create the output directory if it doesn't exist
+            output_dir = os.path.join('C:\\Users\\Conor King\\Documents\\School\\EEC 289A\\HW 2 - 2nd Attempt\\TextureSynthesis\\Synthesized Images', f'{filename}_kernel{kernel_size}')
+            os.makedirs(output_dir, exist_ok=True)
 
-    runtime = 1
-    runtime = runtime * 60
-
-    synthesized_texture = synthesize_texture(sample, (window_height, window_width), kernel_size, visualize=visualize, runtime=runtime)
-
-    # Save the synthesized texture (replace with your desired output path)
-    output_image_path = 'C:\\Users\\Conor King\\Documents\\School\\EEC 289A\\HW 2 - 2nd Attempt\\TextureSynthesis\\Synthesized Images\\1.jpg'
-    # Create the output folder if it doesn't exist
-    os.makedirs(os.path.dirname(output_image_path), exist_ok=True)
-
-    # Save the synthesized texture
-    cv2.imwrite(output_image_path, synthesized_texture)
-    print(f"Synthesized texture saved to {output_image_path}")
+            # Save the synthesized texture
+            output_image_path = os.path.join(output_dir, 'synthesized_image.jpg')
+            cv2.imwrite(output_image_path, synthesized_texture)
+            print(f"Synthesized texture saved to {output_image_path}")
