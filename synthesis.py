@@ -75,6 +75,8 @@ def normalized_ssd(sample, window, mask):
 
 def get_candidate_indices(normalized_ssd, error_threshold=ERROR_THRESHOLD):
     min_ssd = np.min(normalized_ssd)
+    if min_ssd > 0.:
+        a = 5
     min_threshold = min_ssd * (1. + error_threshold)
     indices = np.where(normalized_ssd <= min_threshold)
     return indices
