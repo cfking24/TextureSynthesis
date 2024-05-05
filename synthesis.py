@@ -3,6 +3,8 @@
 import argparse
 import cv2
 import numpy as np
+import time
+import random
 
 EIGHT_CONNECTED_NEIGHBOR_KERNEL = np.array([[1., 1., 1.],
                                             [1., 0., 1.],
@@ -52,12 +54,53 @@ def normalized_ssd(sample, window, mask):
 
     return normalized_ssd
 
-def get_candidate_indices(normalized_ssd, error_threshold=ERROR_THRESHOLD):
-    min_ssd = np.min(normalized_ssd)
-    if min_ssd > 0.:
-        a = 5
-    min_threshold = min_ssd * (1. + error_threshold)
-    indices = np.where(normalized_ssd <= min_threshold)
+def calculate_threshold_distance(sample, windowsize, runtime=15, percentile=0.0003):
+    start_time = time.time()
+    distances = []
+
+    # Calculate the shape of the sample array
+    sh, sw = sample.shape
+
+    counter = 0
+
+    while time.time() - start_time < runtime:
+        # Select a random patch
+        i = random.randint(0, sh-windowsize)
+        j = random.randint(0, sw-windowsize)
+
+        # Create the window and mask
+        window = sample[i:i+windowsize, j:j+windowsize]
+        mask = np.zeros_like(window)
+        mask[:, :mask.shape[1]//2] = 1
+
+        # Calculate the normalized SSD for the patch
+        ssd = normalized_ssd(sample, window, mask)
+
+        # Calculate the squared sum of distances for the patch
+        distances.append(ssd.reshape(-1, 1))
+
+        counter += 1
+
+    # Sort the distances
+    distances = np.concatenate(distances).ravel()
+    distances.sort()
+
+    # Calculate the index of the threshold distance
+    index = int(len(distances) * percentile)
+
+    # Return the threshold distance
+    print("Number of patches checked:", counter)
+    return distances[index]
+
+def get_candidate_indices(normalized_ssd, error_threshold=ERROR_THRESHOLD, threshold_distance=None):
+    # min_ssd = np.min(normalized_ssd)
+    # min_threshold = min_ssd * (1. + error_threshold)
+    # threshold_distance = max(threshold_distance, min_threshold)
+    # indices = np.where(normalized_ssd <= threshold_distance)
+    # if min_ssd > 0.:
+    #     a = 5
+    sorted_indices = np.argsort(normalized_ssd.flatten())[:4]
+    indices = (sorted_indices // normalized_ssd.shape[1], sorted_indices % normalized_ssd.shape[1])
     return indices
 
 def select_pixel_index(normalized_ssd, indices, method='uniform'):
@@ -66,7 +109,9 @@ def select_pixel_index(normalized_ssd, indices, method='uniform'):
     if method == 'uniform':
         weights = np.ones(N) / float(N)
     else:
-        weights = normalized_ssd[indices]
+        weights = 1 / (normalized_ssd[indices] + 1e-6)  # Add a small value to avoid division by zero
+        if max(weights) < 1e6:
+            a = 5
         weights = weights / np.sum(weights)
 
     # Select a random pixel index from the index list.
@@ -121,6 +166,8 @@ def initialize_texture_synthesis(original_sample, window_size, kernel_size):
     sample = sample.astype(np.float64)
     sample = sample / 255.
 
+    threshold_distance = calculate_threshold_distance(sample, kernel_size)
+
     # Generate window
     window = np.zeros(window_size, dtype=np.float64)
 
@@ -157,12 +204,12 @@ def initialize_texture_synthesis(original_sample, window_size, kernel_size):
     window = padded_window[win:-win, win:-win]
     mask = padded_mask[win:-win, win:-win]
 
-    return sample, window, mask, padded_window, padded_mask, result_window
+    return sample, window, mask, padded_window, padded_mask, result_window, threshold_distance
     
 def synthesize_texture(original_sample, window_size, kernel_size, visualize):
     global gif_count
     (sample, window, mask, padded_window, 
-        padded_mask, result_window) = initialize_texture_synthesis(original_sample, window_size, kernel_size)
+        padded_mask, result_window, threshold_distance) = initialize_texture_synthesis(original_sample, window_size, kernel_size)
 
     # Synthesize texture until all pixels in the window are filled.
     while texture_can_be_synthesized(mask):
@@ -179,8 +226,8 @@ def synthesize_texture(original_sample, window_size, kernel_size, visualize):
 
             # Compute SSD for the current pixel neighborhood and select an index with low error.
             ssd = normalized_ssd(sample, window_slice, mask_slice)
-            indices = get_candidate_indices(ssd)
-            selected_index = select_pixel_index(ssd, indices)
+            indices = get_candidate_indices(ssd, threshold_distance = threshold_distance)
+            selected_index = select_pixel_index(ssd, indices, method = 'weighted')
 
             # Translate index to accommodate padding.
             selected_index = (selected_index[0] + kernel_size // 2, selected_index[1] + kernel_size // 2)

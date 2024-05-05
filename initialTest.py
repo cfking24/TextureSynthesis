@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
     # Set parameters (window size, kernel size, etc.)
     window_height, window_width = 1000, 1000
-    kernel_size = 11
+    kernel_size = 21
 
     # # Assuming 'original_sample' is loaded correctly
     # # Check if the image has an alpha channel (RGBA format)
