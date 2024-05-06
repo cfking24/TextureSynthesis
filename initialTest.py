@@ -7,12 +7,12 @@ from synthesis import synthesize_texture
 # Example usage
 if __name__ == '__main__':
     # Load your input images from the Images directory
-    input_images_dir = 'C:\\Users\\Conor King\\Documents\\School\\EEC 289A\\HW 2 - 2nd Attempt\\TextureSynthesis\\Images'
+    input_images_dir = 'C:\\Users\\Conor King\\Documents\\School\\EEC 289A\\HW 2 - 2nd Attempt\\TextureSynthesis\\Images 2'
     input_image_paths = [os.path.join(input_images_dir, filename) for filename in os.listdir(input_images_dir)]
 
     # Set kernel sizes and runtime
     kernel_sizes = [11, 31, 51]
-    runtime_minutes = 15
+    runtime_minutes = 180
 
     for input_image_path in input_image_paths:
         # Load input image
@@ -34,7 +34,7 @@ if __name__ == '__main__':
             synthesized_texture = synthesize_texture(sample, (1000, 1000), kernel_size, visualize=False, runtime=runtime)
 
             # Create the output directory if it doesn't exist
-            output_dir = os.path.join('C:\\Users\\Conor King\\Documents\\School\\EEC 289A\\HW 2 - 2nd Attempt\\TextureSynthesis\\Synthesized Images', f'{filename}_kernel{kernel_size}')
+            output_dir = os.path.join('C:\\Users\\Conor King\\Documents\\School\\EEC 289A\\HW 2 - 2nd Attempt\\TextureSynthesis\\Synthesized Images 2', f'{filename}_kernel{kernel_size}')
             os.makedirs(output_dir, exist_ok=True)
 
             # Save the synthesized texture
