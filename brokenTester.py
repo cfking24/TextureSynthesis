@@ -1,17 +1,17 @@
-from synthesis import synthesize_texture
+from synthesis_broken import synthesize_texture
 import cv2
 import os
 
 # Example usage
 if __name__ == '__main__':
     # Load your input image (replace with your actual image path)
-    input_image_path = 'C:\\Users\\Conor King\\Documents\\School\\EEC 289A\\HW 2 - 2nd Attempt\\TextureSynthesis\\Images 2\\original map.png'
+    input_image_path = 'C:\\Users\\Conor King\\Documents\\School\\EEC 289A\\HW 2 - 2nd Attempt\\TextureSynthesis\\Images\\1.png'
     
     sample = cv2.imread(input_image_path)
 
     # Decrease the resolution of the image
-    new_width = 128  # Replace with your desired width
-    new_height = 128  # Replace with your desired height
+    new_width = 64  # Replace with your desired width
+    new_height = 64  # Replace with your desired height
     sample = cv2.resize(sample, (new_width, new_height), interpolation=cv2.INTER_AREA)
 
     # Display the image
@@ -20,8 +20,8 @@ if __name__ == '__main__':
     cv2.destroyAllWindows()
 
     # Set parameters (window size, kernel size, etc.)
-    window_height, window_width = 1000, 1000
-    kernel_size = 31
+    window_height, window_width = 50, 50
+    kernel_size = 11
 
     # # Assuming 'original_sample' is loaded correctly
     # # Check if the image has an alpha channel (RGBA format)
@@ -40,13 +40,10 @@ if __name__ == '__main__':
     visualize = True
     # Perform texture synthesis
 
-    runtime = 2*60
-    runtime = runtime * 60
-
-    synthesized_texture = synthesize_texture(sample, (window_height, window_width), kernel_size, visualize=visualize, runtime=runtime)
+    synthesized_texture = synthesize_texture(sample, (window_height, window_width), kernel_size, visualize=visualize)
 
     # Save the synthesized texture (replace with your desired output path)
-    output_image_path = 'C:\\Users\\Conor King\\Documents\\School\\EEC 289A\\HW 2 - 2nd Attempt\\TextureSynthesis\\Maps\\128and31for2h.jpg'
+    output_image_path = 'C:\\Users\\Conor King\\Documents\\School\\EEC 289A\\HW 2 - 2nd Attempt\\TextureSynthesis\\BrokenSynths\\bestN\\weighted\\best4.jpg'
     # Create the output folder if it doesn't exist
     os.makedirs(os.path.dirname(output_image_path), exist_ok=True)
 

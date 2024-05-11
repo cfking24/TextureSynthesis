@@ -23,11 +23,11 @@ def normalized_ssd(sample, window, mask, patch_percentage):
     strided_sample = strided_sample.reshape(-1, wh, ww)
 
     # Randomly sample a percentage of patches from the strided sample.
-    num_patches = strided_sample.shape[0]
-    num_selected_patches = int(num_patches * patch_percentage)
-    selected_indices = np.random.choice(num_patches, size=num_selected_patches, replace=False)
-    selected_indices.sort()  # Sort the indices in ascending order
-    strided_sample = strided_sample[selected_indices]
+    # num_patches = strided_sample.shape[0]
+    # num_selected_patches = int(num_patches * patch_percentage)
+    # selected_indices = np.random.choice(num_patches, size=num_selected_patches, replace=False)
+    # selected_indices.sort()  # Sort the indices in ascending order
+    # strided_sample = strided_sample[selected_indices]
 
     # Note that the window and mask views have the same shape as the strided sample, but the kernel is fixed
     # rather than sliding for each of these components.
@@ -64,7 +64,7 @@ def normalized_ssd(sample, window, mask, patch_percentage):
 
     return normalized_ssd
 
-def calculate_threshold_distance(sample, windowsize, runtime=15, percentile=0.0003):
+def calculate_threshold_distance(sample, windowsize, runtime=15, percentile=0.003):
     start_time = time.time()
     distances = []
 
@@ -84,8 +84,8 @@ def calculate_threshold_distance(sample, windowsize, runtime=15, percentile=0.00
         mask[:, :mask.shape[1]//2] = 1
 
         # Calculate the normalized SSD for the patch
-        #ssd = normalized_ssd(sample, window, mask, 1)
-        ssd = np.random.rand(1, 1) # Placeholder for the normalized SSD
+        ssd = normalized_ssd(sample, window, mask, 1)
+        #ssd = np.random.rand(1, 1) # Placeholder for the normalized SSD
 
         # Calculate the squared sum of distances for the patch
         distances.append(ssd.reshape(-1, 1))
@@ -104,15 +104,15 @@ def calculate_threshold_distance(sample, windowsize, runtime=15, percentile=0.00
     return distances[index]
 
 def get_candidate_indices(normalized_ssd, error_threshold=ERROR_THRESHOLD, threshold_distance=None):
-    min_ssd = np.min(normalized_ssd)
-    min_threshold = min_ssd * (1. + error_threshold)
-    #threshold_distance = max(threshold_distance, min_threshold)
-    threshold_distance = min_threshold
-    indices = np.where(normalized_ssd <= threshold_distance)
-    if min_ssd > 0.:
-        a = 5
-    # sorted_indices = np.argsort(normalized_ssd.flatten())[:4]
-    # indices = (sorted_indices // normalized_ssd.shape[1], sorted_indices % normalized_ssd.shape[1])
+    # min_ssd = np.min(normalized_ssd)
+    # min_threshold = min_ssd * (1. + error_threshold)
+    # threshold_distance = max(threshold_distance, min_threshold)
+    # # threshold_distance = min_threshold
+    # indices = np.where(normalized_ssd <= threshold_distance)
+    # if min_ssd > 0.:
+    #     a = 5
+    sorted_indices = np.argsort(normalized_ssd.flatten())[:4]
+    indices = (sorted_indices // normalized_ssd.shape[1], sorted_indices % normalized_ssd.shape[1])
     return indices
 
 def select_pixel_index(normalized_ssd, indices, method='uniform'):
@@ -122,13 +122,15 @@ def select_pixel_index(normalized_ssd, indices, method='uniform'):
         weights = np.ones(N) / float(N)
     else:
         weights = 1 / (normalized_ssd[indices] + 1e-6)  # Add a small value to avoid division by zero
-        if max(weights) < 1e6:
-            a = 5
         weights = weights / np.sum(weights)
 
     # Select a random pixel index from the index list.
     selection = np.random.choice(np.arange(N), size=1, p=weights)
     selected_index = (indices[0][selection], indices[1][selection])
+
+    # max_weight_index = np.argmax(weights)
+    # if selection != max_weight_index:
+    #     print("The selection wasn't the index with the maximum weight.")
     
     return selected_index
 
