@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 def get_images_from_directory(directory):
     images = []
     for filename in os.listdir(directory):
-        if filename.endswith(".png"):
+        if filename.endswith(".jpg"):
             images.append(os.path.join(directory, filename))
     images.sort(key=lambda x: int(os.path.splitext(os.path.basename(x))[0].split("_")[0]))
     return images
